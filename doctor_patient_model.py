@@ -12,6 +12,8 @@ import pandas
 
 import random
 
+import heapq
+
 # Constants
 ALIVE = 1
 DEAD = 0
@@ -64,25 +66,33 @@ class DoctorAgent(mesa.Agent):
 		super().__init__(unique_id, model)
 		self.speed = 5
 		self.type = DOCTOR
+		#self.step_count = 0
 
 	def step(self):
 		#print(f"Hi, I am a doctor agent, you can call me {str(self.unique_id)}.")
 		self.move()
 		self.treat_patient()
+		#self.step_count += 1
+
+		#if self.step_count > 1:
+		#	self.move()
 
 	def move(self):
-		# pos = agent vairable that hold the x and y coodinates of the agent
+		# pos = agent tuple vairable that hold the x and y coodinates of the agent
 		# moore = look at all 8 surrounding squares (false means only up/down/left/right)
 		# include_center = include the center tile as a neighboring tile
 		#possible_steps = self.model.grid.get_neighborhood(self.pos, moore = True, include_center = False)
 		#new_position = self.random.choice(possible_steps)
 		#self.model.grid.move_agent(self, new_position)
-		patient_location = self.locate_patient()
-		self.model.grid.move_agent(self, patient_location)
+		#patient_location = self.locate_patient()
+		path_to_patient = self.locate_patient()
+		#self.model.grid.move_agent(self, patient_location)
+		print(f"**moving doctor to {path_to_patient[1]}**")
+		self.model.grid.move_agent(self, path_to_patient[1])
 
 	def locate_patient(self):
 		#all_patients = []
-		all_cells = self.model.grid.get_neighborhood(self.pos, moore = True, include_center = False, radius = 15) # get a list of all cells within a 10 cell radius of the doctor agent
+		all_cells = self.model.grid.get_neighborhood(self.pos, moore = True, include_center = False, radius = 15) # get a list of all cells within a 15 cell radius of the doctor agent
 		all_agents = self.model.grid.get_cell_list_contents(all_cells) # get a list of all agents in list of all cells
 		
 		for agent in all_agents:
@@ -93,7 +103,126 @@ class DoctorAgent(mesa.Agent):
 		all_agents.sort(reverse = True, key = agent.get_injury_lvl)
 
 		# return the x and y coordinates of the patient with the highest injury value
-		return all_agents[0].pos
+		#return all_agents[0].pos
+
+		# use A* informed search algorithm to find best path to patient who needs treatment
+		# create start and end nodes, add start node (the doctor's position) to the open list
+		start = Node(None, self.pos)
+		start.g = 0
+		start.h = 0
+		start.f = 0
+
+		end = Node(None, all_agents[0].pos)
+		end.g = 0
+		end.h = 0
+		end.f = 0
+
+		open_list = [] # list of nodes for A* that we have not searched yet
+		closed_list = [] # list of nodes for A* that we have searched
+		
+		# use heap to heapify the list of open nodes (should hopefully speed up algorithm)
+		heapq.heapify(open_list)
+		heapq.heappush(open_list, start)
+		#heapq.heapify(open_list)
+		#heapq.heappush(open_list, start)
+
+		# loop until we find the goal node (the patient)
+		while len(open_list) > 0:
+			#print(f"open_list length = {str(len(open_list))}")
+			c_node = heapq.heappop(open_list) # get current node from heap
+			print(f"current node = {c_node.position}")
+			closed_list.append(c_node)
+			#c_index = 0
+
+			#for index, node in enumerate(open_list):
+			#	if node.f < c_node.f:
+			#		c_node = node
+			#		c_index = index
+
+			#open_list.pop(c_index)
+			#closed_list.append(c_node)
+
+			# if we found the goal node, back track all the way back to start node and store path in a list
+			if c_node.position == end.position:
+				print("found patient!!!!")
+				path = []
+				current = c_node
+
+				while current is not None:
+					path.append(current.position)
+					current = current.parent
+
+				return path[::-1]
+
+    			#while curent is not None:
+    			#	path.append(current.position)
+    			#	current = current.parent
+
+    			#return path.reverse() # return path to patient in reverse order
+
+    			#while current is not None:
+        		#	path.append(current.position)
+        		#	current = current.parent
+
+    			#return path.reverse() # return path to patient in reverse order
+				#full_path = []
+				#c = c_node
+
+				#while c is not None:
+					#print("in second while")
+					#full_path.append(c.position)
+					#c = c.parent
+
+				#return full_path[::-1]
+				#return full_path.reverse()
+				#break # break out of loop and use full_path list to traverse to patient
+
+			# generate all "child" nodes
+			child_nodes = []
+			neighbouring_squares = ((0, -1), (0, 1), (-1, 0), (1, 0),)
+
+			# check all the neighbouring nodes around the current node to see which one has the lowest cost
+			for position_new in neighbouring_squares:
+				n_position = (c_node.position[0] + position_new[0], c_node.position[1] + position_new[1])
+
+				# make sure that the doctor can actually move to this cell
+				# doctor can only move to same cell as patient when he is treating them, otherwise he must walk around them
+				# therefore, we will not generate a child node for the path if there is a patient in that cell
+				for agents in all_agents:
+					if agent.pos == n_position:
+						continue
+
+				# create a new child node and append it to the list of children nodes
+				new_node = Node(c_node,n_position)
+				child_nodes.append(new_node)
+
+			# iterate through all child nodes and only add them to open list if they have the lowest g cost
+			for child in child_nodes:
+
+				# if child is already on the closed list, simply continue to next child
+				if len([child_closed for child_closed in closed_list if child_closed == child]) > 0:
+					continue
+				#for child_closed_list in closed_list:
+					#if child == child_closed_list:
+						#continue
+
+				# calculate f, g and h values using Pythagorean Theorem (since doctor can move diagonaly as well)
+				child.g = c_node.g + 1
+				child.h = ((child.position[0] - end.position[0]) ** 2) + ((child.position[1] - end.position[1]) ** 2)
+				child.f = child.g + child.h
+
+				# do not add child to list of open nodes to explore if its g cost is greater than the g cost of nodes already on the list
+				if len([all_open_nodes for all_open_nodes in open_list if child.position == all_open_nodes.position and child.g > all_open_nodes.g]) > 0:
+					continue
+				#for all_open_nodes in open_list:
+					#if child == all_open_nodes and child.g > all_open_nodes.g:
+						#continue
+
+				#open_list.append(child)
+				heapq.heappush(open_list, child)
+
+		#return full_path.reverse()
+
 
 	def treat_patient(self):
 		cell_mates = self.model.grid.get_cell_list_contents([self.pos])
@@ -154,6 +283,31 @@ class DoctorPatientModel(mesa.Model):
 	def step(self):
 		self.datacollector.collect(self) # start the data collector
 		self.schedule.step() # randomly call step function of each agent once per model step
+
+# need this extra class for A* to store values of g, h and f for A* calculations
+class Node():
+	def __init__(self, parent = None, position = None):
+		self.parent = parent # link to parent node in the grid
+		self.position = position # tuple of x and y coordinates of cell position in grid
+		self.g = 0 # g = cost from current node to start node
+		self.h = 0 # h = cost from current node to goal node
+		self.f = 0 # f = sum of g and h
+
+	# need to define this for the heap queue to work
+	def __lt__(self, other):
+		return self.f < other.f
+
+	# need to define this for the heap queue to work
+	def __gt__(self, other):
+		return self.f > other.f
+
+	# need to define this for the heap queue to work
+    #def __lt__(self, other):
+    #  return self.f < other.f
+    
+    # need to define this for the heap queue to work
+    #def __gt__(self, other):
+    #  return self.f > other.f
 
 
 
