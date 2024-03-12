@@ -43,7 +43,7 @@ class PatientAgent(mesa.Agent):
 	def __init__(self, unique_id, model, init_state = ALIVE):
 		super().__init__(unique_id, model)
 		self.injury_level = random.randint(1, 10) # set injury level of patient
-		self.TTL = int(100 / self.injury_level) # how long the patient has to live (depends on how injured they are)
+		self.TTL = int(99 / self.injury_level) # how long the patient has to live (depends on how injured they are)
 		self.state = init_state
 		self.type = PATIENT
 
@@ -56,7 +56,7 @@ class PatientAgent(mesa.Agent):
 			self.injury_level = 0
 			self.state = DEAD
 		else:
-			self.TTL = self.TTL -  self.injury_level
+			self.TTL = self.TTL -  int(self.injury_level / 2) # change this function if needed to speed up/slow down the death rate of patients
 
 	def get_injury_lvl(self, agent):
 		return	agent.injury_level
@@ -66,16 +66,11 @@ class DoctorAgent(mesa.Agent):
 		super().__init__(unique_id, model)
 		self.speed = 5
 		self.type = DOCTOR
-		#self.step_count = 0
 
 	def step(self):
 		#print(f"Hi, I am a doctor agent, you can call me {str(self.unique_id)}.")
 		self.move()
 		self.treat_patient()
-		#self.step_count += 1
-
-		#if self.step_count > 1:
-		#	self.move()
 
 	def move(self):
 		# pos = agent tuple vairable that hold the x and y coodinates of the agent
@@ -123,24 +118,13 @@ class DoctorAgent(mesa.Agent):
 		# use heap to heapify the list of open nodes (should hopefully speed up algorithm)
 		heapq.heapify(open_list)
 		heapq.heappush(open_list, start)
-		#heapq.heapify(open_list)
-		#heapq.heappush(open_list, start)
-
+	
 		# loop until we find the goal node (the patient)
 		while len(open_list) > 0:
 			#print(f"open_list length = {str(len(open_list))}")
 			c_node = heapq.heappop(open_list) # get current node from heap
 			print(f"current node = {c_node.position}")
 			closed_list.append(c_node)
-			#c_index = 0
-
-			#for index, node in enumerate(open_list):
-			#	if node.f < c_node.f:
-			#		c_node = node
-			#		c_index = index
-
-			#open_list.pop(c_index)
-			#closed_list.append(c_node)
 
 			# if we found the goal node, back track all the way back to start node and store path in a list
 			if c_node.position == end.position:
@@ -153,29 +137,6 @@ class DoctorAgent(mesa.Agent):
 					current = current.parent
 
 				return path[::-1]
-
-    			#while curent is not None:
-    			#	path.append(current.position)
-    			#	current = current.parent
-
-    			#return path.reverse() # return path to patient in reverse order
-
-    			#while current is not None:
-        		#	path.append(current.position)
-        		#	current = current.parent
-
-    			#return path.reverse() # return path to patient in reverse order
-				#full_path = []
-				#c = c_node
-
-				#while c is not None:
-					#print("in second while")
-					#full_path.append(c.position)
-					#c = c.parent
-
-				#return full_path[::-1]
-				#return full_path.reverse()
-				#break # break out of loop and use full_path list to traverse to patient
 
 			# generate all "child" nodes
 			child_nodes = []
@@ -202,9 +163,6 @@ class DoctorAgent(mesa.Agent):
 				# if child is already on the closed list, simply continue to next child
 				if len([child_closed for child_closed in closed_list if child_closed == child]) > 0:
 					continue
-				#for child_closed_list in closed_list:
-					#if child == child_closed_list:
-						#continue
 
 				# calculate f, g and h values using Pythagorean Theorem (since doctor can move diagonaly as well)
 				child.g = c_node.g + 1
@@ -214,9 +172,6 @@ class DoctorAgent(mesa.Agent):
 				# do not add child to list of open nodes to explore if its g cost is greater than the g cost of nodes already on the list
 				if len([all_open_nodes for all_open_nodes in open_list if child.position == all_open_nodes.position and child.g > all_open_nodes.g]) > 0:
 					continue
-				#for all_open_nodes in open_list:
-					#if child == all_open_nodes and child.g > all_open_nodes.g:
-						#continue
 
 				#open_list.append(child)
 				heapq.heappush(open_list, child)
@@ -300,14 +255,6 @@ class Node():
 	# need to define this for the heap queue to work
 	def __gt__(self, other):
 		return self.f > other.f
-
-	# need to define this for the heap queue to work
-    #def __lt__(self, other):
-    #  return self.f < other.f
-    
-    # need to define this for the heap queue to work
-    #def __gt__(self, other):
-    #  return self.f > other.f
 
 
 

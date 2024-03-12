@@ -8,7 +8,13 @@ def agent_portrayal(agent):
 	# shape and colors for patients
 	if agent.type == 3:
 		if agent.state == 1:
-			if agent.TTL >= 91 and agent.TTL <= 100:
+			if agent.TTL == 100:
+				portrayal["Shape"] = "circle"
+				portrayal["Filled"] = "true"
+				portrayal["r"] = 0.6
+				portrayal["Color"] = "rgb(0, 255, 0)"
+				portrayal["Layer"] = 0
+			elif agent.TTL >= 91 and agent.TTL < 100:
 				portrayal["Shape"] = "circle"
 				portrayal["Filled"] = "true"
 				portrayal["r"] = 0.6
