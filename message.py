@@ -27,7 +27,7 @@ def calculate_doctor_efficiency(model):
 class PatientAgent(mesa.Agent):
 	def __init__(self, unique_id, model, init_state=ALIVE):
 		super().__init__(unique_id, model)
-		self.injury_level = random.randint(2, 5)
+		self.injury_level = random.randint(2, 10)
 		self.TTL = int(99 / self.injury_level)
 		self.state = init_state
 		self.type = PATIENT
@@ -45,7 +45,7 @@ class PatientAgent(mesa.Agent):
 class DoctorAgent(mesa.Agent):
 	def __init__(self, unique_id, model):
 		super().__init__(unique_id, model)
-		self.speed = 10
+		self.speed = 5
 		self.type = DOCTOR
 
 	def step(self):
@@ -56,47 +56,42 @@ class DoctorAgent(mesa.Agent):
 			self.treat_patient()
 		else:
 			print("no path found!")
+	
 	def locate_patient(self):
 		all_cells = self.model.grid.get_neighborhood(self.pos, moore=True, include_center=False, radius=15)
 		all_agents = self.model.grid.get_cell_list_contents(all_cells)
-		# First, filter alive patients.
 		alive_patients = [agent for agent in all_agents if agent.type == PATIENT and agent.state == ALIVE and agent.injury_level > 0]
-		# Sort by injury level in descending order, so the most injured patients come first.
-		sorted_patients_by_injury = sorted(alive_patients, key=lambda x: (-x.injury_level, x.TTL))
+		sorted_patients_by_ttl = sorted(alive_patients, key=lambda x: x.TTL)
 
-		for patient in sorted_patients_by_injury:
-			path = self.find_path_to_patient(patient)
-			if path is not None:  # Assuming 'find_path_to_patient' attempts pathfinding and returns a path if successful
-				survival_prediction = self.estimate_survivability(patient, path)
-				if survival_prediction >= 0:
-					# If the patient is expected to survive until the doctor reaches them, choose this patient.
-					return path
-		# If no suitable patient is found, return None.
-		return None
-	
-	def find_path_to_patient(self, patient):
-		start = Node(None, self.pos)
-		goal = Node(None, patient.pos)
-		open_list = []
-		closed_list = []
-		heapq.heapify(open_list)
-		heapq.heappush(open_list, start)
+		for patient in sorted_patients_by_ttl:
+			start = Node(None, self.pos)
+			goal = Node(None, patient.pos)
+			open_list = []
+			closed_list = []
+			heapq.heapify(open_list)
+			heapq.heappush(open_list, start)
 
-		while open_list:
-			current_node = heapq.heappop(open_list)
-			closed_list.append(current_node)
+			while open_list:
+				current_node = heapq.heappop(open_list)
+				closed_list.append(current_node)
 
-			if current_node.position == goal.position:
-				return self.reconstruct_path(current_node)
+				if current_node.position == goal.position:
+					path = self.reconstruct_path(current_node)
+					survival_prediction = self.estimate_survivability(patient, path)
+					print(f"Surival prediction for patient {str(patient.unique_id)}: {survival_prediction}, Location: {str(patient.pos)}, Injury level: {str(patient.injury_level)}, TTL: {str(patient.TTL)}")
+					if survival_prediction >= 0:
+						print(f"Doctor chose patient {str(patient.unique_id)}")
+						return path
+					else:
+						print("Moving to next patient")
+						break  # Check next patient if this one can't be reached in time.
 
-			children = self.generate_children(current_node, closed_list)
-			for child in children:
-				if not any(child.position == open_node.position and child.g >= open_node.g for open_node in open_list):
-					heapq.heappush(open_list, child)
+				children = self.generate_children(current_node, closed_list)
+				for child in children:
+					if not any(child.position == open_node.position and child.g >= open_node.g for open_node in open_list):
+						heapq.heappush(open_list, child)
 
 		return None
-
-
 
 	def generate_children(self, current_node, closed_list):
 		children = []
@@ -130,12 +125,11 @@ class DoctorAgent(mesa.Agent):
 	
 	# doctor agent estimates if he can reach the patient before it dies
 	def estimate_survivability(self, patient, path):
-		estimated_time_of_death = (int)(patient.TTL / (patient.injury_level / 2) + 8) # roughly how many steps the patient has left before death
+		estimated_time_of_death = (int)(patient.TTL / (patient.injury_level / 2)) # roughly how many steps the patient has left before death
 		print(f"steps left before death for patient {str(patient.unique_id)}: {estimated_time_of_death}")
 		print(f"path length: {len(path) - 1}")
 		survival_prediction = estimated_time_of_death - (len(path) - 1)
 		return survival_prediction
-
 
 
 class DoctorPatientModel(mesa.Model):
@@ -189,12 +183,6 @@ class DoctorPatientModel(mesa.Model):
 		print("\n---------- NEW STEP ----------\n")
 		self.datacollector.collect(self) # start the data collector
 		self.schedule.step() # randomly call step function of each agent once per model step
-
-		    # Added: Print the TTL of all alive patients
-		print("Current TTLs of Alive Patients:")
-		for agent in self.schedule.agents:
-			if isinstance(agent, PatientAgent) and agent.state == ALIVE:
-				print(f"Patient ID {agent.unique_id}: TTL {agent.TTL}")
 
 class Node():
 	def __init__(self, parent=None, position=None):
